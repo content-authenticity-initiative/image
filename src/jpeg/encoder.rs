@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 
 use std::convert::TryFrom;
+use std::convert::TryInto;
 use std::io::{self, Write};
 
 use byteorder::{BigEndian, WriteBytesExt};
@@ -28,7 +29,14 @@ static SOS: u8 = 0xDA;
 // Quantization Tables
 static DQT: u8 = 0xDB;
 // Application segments start and end
-static APP0: u8 = 0xE0;
+static APP0:  u8 = 0xE0;
+// static APP1:  u8 = 0xE1; // EXIF, XMP
+// static APP2:  u8 = 0xE2; // ICC profile
+static APP11: u8 = 0xEB; // JPEG-XL extensions
+// static APP12: u8 = 0xEC; // PSD "Save for Web" (aka Ducky)
+// static APP14: u8 = 0xEE; // Adobe    
+// static COM: u8 = 0xFE;  // Comment
+
 
 // section K.1
 // table K.1
@@ -496,6 +504,10 @@ impl<'a, W: Write> JPEGEncoder<'a, W> {
         build_jfif_header(&mut buf, self.pixel_density);
         self.writer.write_segment(APP0, Some(&buf))?;
 
+        let app11_payload = vec![b'j', b'p', b'x', b't', 0, 0, 0, 0];
+        build_app11(&mut buf, app11_payload);
+        self.writer.write_segment(APP11, Some(&buf))?;
+
         build_frame_header(
             &mut buf,
             8,
@@ -694,6 +706,21 @@ fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     let _ = m.write_u16::<BigEndian>(density.density.1);
     let _ = m.write_all(&[0]);
     let _ = m.write_all(&[0]);
+}
+
+fn build_app11(m: &mut Vec<u8>, payload: Vec<u8>) {
+    m.clear();
+
+    let _ = write!(m, "JP");                // CI: JPEG extensions marker
+    let _ = m.write_u16::<BigEndian>(1);    // En: Box Instance Number
+    let _ = m.write_u32::<BigEndian>(1);    // Z: Packet sequence number 
+
+    let lbox:u32 = (4 + 4 + payload.len()).try_into().unwrap(); // size of LBox + size of TBox
+    let _ = m.write_u32::<BigEndian>(lbox);    // LBox: Length of the box's actual data
+
+    let _ = write!(m, "ftyp");              // TBox: ftype in this case...
+
+    m.extend(payload);           // Payload...(we use extend because payload is immutable)
 }
 
 fn build_frame_header(
