@@ -23,7 +23,7 @@ use std::io::{self, Seek, SeekFrom, Read, Write, BufReader, BufWriter};
 use byteorder::{BigEndian, ByteOrder, NativeEndian};
 
 use crate::color::ColorType;
-use crate::error::{EncodingError, DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
+use crate::error::{DecodingError, ImageError, ImageResult, UnsupportedError, UnsupportedErrorKind};
 use crate::image::{self, ImageDecoder, ImageDecoderExt, ImageEncoder, ImageFormat, Progress};
 
 /// farbfeld Reader
@@ -226,11 +226,8 @@ impl<W: Write> FarbfeldEncoder<W> {
     /// Encodes the image ```data``` (native endian)
     /// that has dimensions ```width``` and ```height```
     pub fn encode(self, data: &[u8], width: u32, height: u32) -> ImageResult<()> {
-        self.encode_impl(data, width, height).map_err(|err|
-            ImageError::Encoding(EncodingError::new(
-                ImageFormat::Farbfeld.into(),
-                err,
-            )))
+        self.encode_impl(data, width, height)?;
+        Ok(())
     }
 
     fn encode_impl(mut self, data: &[u8], width: u32, height: u32) -> io::Result<()> {

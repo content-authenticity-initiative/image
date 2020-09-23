@@ -10,6 +10,38 @@ Rust image aims to be a pure-Rust implementation of various popular image format
 
 ## Changes
 
+### Version 0.23.9
+
+- Introduced correctly capitalized aliases for some scream case types
+- Introduced `imageops::{vertical_gradient, horizontal_gradient}` for writing
+  simple color gradients into an image.
+- Sped up methods iterating over `Pixels`, `PixelsMut`, etc. by using exact
+  chunks internally. This should auto-vectorize `ImageBuffer::from_pixel`.
+- Adjusted `Clone` impls of iterators to not require a bound on the pixel.
+- Add `Debug` impls for iterators where the pixel's channel implements it.
+- Add comparison impls for `FilterType`
+
+### Version 0.23.8
+
+- `flat::Error` now implements the standard `Error` trait
+- The type parameter of `Map` has been relaxed to `?Sized`
+- Added the `imageops::tile` function that repeats one image across another
+
+### Version 0.23.7
+
+- Iterators over immutable pixels of `ImageBuffer` can now be cloned
+- Added a `tga` encoder
+- Added `ColorMap::lookup`, an optional reversal of the map
+- The `EncodableLayout` trait is now exported
+
+### Version 0.23.6
+
+- Added `png::ApngDecoder`, an adapter decoding the animation in an APNG.
+- Fixed a bug in `jpeg` encoding that would darken output colors.
+- Added a utility constructor `FlatSamples::with_monocolor`.
+- Added `ImageBuffer::as_flat_samples_mut` which is a mutable variant of the
+  existing ffi-helper `ImageBuffer::as_flat_samples`.
+
 ### Version 0.23.5
 
 - The `png` encoder now allows configuring compression and filter type. The

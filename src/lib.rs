@@ -9,9 +9,9 @@
 //!
 //! # Overview
 //!
-//! There are two core problems for this library provides solutions: a unified interface for images
+//! There are two core problems for which this library provides solutions: a unified interface for image
 //! encodings and simple generic buffers for their content. It's possible to use either feature
-//! without the other. The focus is on small and stable set of common operations that can be
+//! without the other. The focus is on a small and stable set of common operations that can be
 //! supplemented by other specialized crates. The library also prefers safe solutions with few
 //! dependencies.
 //!
@@ -26,7 +26,7 @@
 //! | WebP   | Lossy(Luma channel only) | No |
 //! | PNM    | PBM, PGM, PPM, standard PAM | Yes |
 //! | DDS    | DXT1, DXT3, DXT5 | No |
-//! | TGA    | Yes | No |
+//! | TGA    | Yes | RGB(8), RGBA(8), BGR(8), BGRA(8), Gray(8), GrayA(8) |
 //! | farbfeld | Yes | Yes |
 //!
 //! ## Using images decoders
@@ -59,11 +59,11 @@
 //!
 //! Encoding pixel data is supported for the majority of formats but not quite as broadly.
 //!
-//! * [`DynamicImage::save`] is converse of `open` and stores a `DynamicImage`.
+//! * [`DynamicImage::save`] is the converse of `open` and stores a `DynamicImage`.
 //! * [`DynamicImage::write_to`] can be used to encode an image into any writer, for example into a
 //!   vector of bytes in memory.
-//! * [`save_buffer`], [`save_buffer_with_format`] are a low-level interface for saving an image
-//!   in the file system where the library initializes the chosen encoder.
+//! * [`save_buffer`], [`save_buffer_with_format`] provide a low-level interface for saving an image
+//!   in the file system, where the library initializes the chosen encoder.
 //! * [`ImageEncoder`] is a trait for encoding a byte buffer of image data and the inverse of the
 //!   `ImageDecoder` interface.
 //!
@@ -86,8 +86,8 @@
 //! functionality.
 //!
 //! Additionally, the [`flat`] module contains items for interoperability with generic channel
-//! matrices and foreign interface. While still strict typed these dynamically validate length and
-//! other layout assumptions required to provide the trait interface. While quite generic You
+//! matrices and foreign interface. While still strictly typed, these dynamically validate length and
+//! other layout assumptions required to provide the trait interface. While they are quite generic, you
 //! should be prepared for a bit of boilerplate when using these types.
 //!
 //! [`GenericImageView`]: trait.GenericImageView.html
@@ -166,7 +166,7 @@ pub use crate::buffer_::{
 pub use crate::flat::FlatSamples;
 
 // Traits
-pub use crate::traits::{Primitive, Pixel};
+pub use crate::traits::{EncodableLayout, Primitive, Pixel};
 
 // Opening and loading images
 pub use crate::io::free_functions::{guess_format, load};
@@ -235,6 +235,8 @@ pub mod tiff;
 pub mod webp;
 #[cfg(feature = "farbfeld")]
 pub mod farbfeld;
+#[cfg(feature = "avif")]
+pub mod avif;
 
 mod animation;
 #[path = "buffer.rs"]

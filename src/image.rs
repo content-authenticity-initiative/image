@@ -57,6 +57,9 @@ pub enum ImageFormat {
     /// An Image in farbfeld Format
     Farbfeld,
 
+    /// An Image in AVIF format.
+    Avif,
+
     #[doc(hidden)]
     __NonExhaustive(crate::utils::NonExhaustiveMarker),
 }
@@ -92,6 +95,8 @@ impl ImageFormat {
             ImageFormat::Ico => &["ico"],
             ImageFormat::Hdr => &["hdr"],
             ImageFormat::Farbfeld => &["ff"],
+            // According to: https://aomediacodec.github.io/av1-avif/#mime-registration
+            ImageFormat::Avif => &["avif", "heif", "heifs", "hif"],
             ImageFormat::__NonExhaustive(marker) => match marker._private {},
         }
     }
@@ -128,6 +133,10 @@ pub enum ImageOutputFormat {
     /// An Image in farbfeld Format
     Farbfeld,
 
+    #[cfg(feature = "tga")]
+    /// An Image in TGA Format
+    Tga,
+
     /// A value for signalling an error: An unsupported format was requested
     // Note: When TryFrom is stabilized, this value should not be needed, and
     // a TryInto<ImageOutputFormat> should be used instead of an Into<ImageOutputFormat>.
@@ -154,6 +163,8 @@ impl From<ImageFormat> for ImageOutputFormat {
             ImageFormat::Bmp => ImageOutputFormat::Bmp,
             #[cfg(feature = "farbfeld")]
             ImageFormat::Farbfeld => ImageOutputFormat::Farbfeld,
+            #[cfg(feature = "tga")]
+            ImageFormat::Tga => ImageOutputFormat::Tga,
 
             f => ImageOutputFormat::Unsupported(format!("{:?}", f)),
         }
@@ -537,6 +548,7 @@ pub trait ImageEncoder {
 }
 
 /// Immutable pixel iterator
+#[derive(Debug)]
 pub struct Pixels<'a, I: ?Sized + 'a> {
     image: &'a I,
     x: u32,
@@ -564,6 +576,12 @@ impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
 
             Some(p)
         }
+    }
+}
+
+impl<I: ?Sized> Clone for Pixels<'_, I> {
+    fn clone(&self) -> Self {
+        Pixels { ..*self }
     }
 }
 
@@ -613,6 +631,11 @@ pub trait GenericImageView {
     /// Returns the pixel located at (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: #method.in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
         self.get_pixel(x, y)
     }
@@ -666,6 +689,11 @@ pub trait GenericImage: GenericImageView {
     /// Puts a pixel at location (x, y)
     ///
     /// This function can be implemented in a way that ignores bounds checking.
+    /// # Safety
+    ///
+    /// The coordinates must be [`in_bounds`] of the image.
+    ///
+    /// [`in_bounds`]: traits.GenericImageView.html#method.in_bounds
     unsafe fn unsafe_put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
         self.put_pixel(x, y, pixel);
     }
@@ -682,8 +710,14 @@ pub trait GenericImage: GenericImageView {
     ///
     /// In order to copy only a piece of the other image, use [`GenericImageView::view`].
     ///
+    /// You can use [`FlatSamples`] to source pixels from an arbitrary regular raster of channel
+    /// values, for example from a foreign interface or a fixed image.
+    ///
     /// # Returns
     /// Returns an error if the image is too large to be copied at the given position
+    ///
+    /// [`GenericImageView::view`]: trait.GenericImageView.html#method.view
+    /// [`FlatSamples`]: flat/struct.FlatSamples.html
     fn copy_from<O>(&mut self, other: &O, x: u32, y: u32) -> ImageResult<()>
     where
         O: GenericImageView<Pixel = Self::Pixel>,

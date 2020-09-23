@@ -1,9 +1,10 @@
 //! Contains the generic `ImageBuffer` struct.
 use num_traits::Zero;
+use std::fmt;
 use std::marker::PhantomData;
 use std::ops::{Deref, DerefMut, Index, IndexMut, Range};
 use std::path::Path;
-use std::slice::{Chunks, ChunksMut};
+use std::slice::{ChunksExact, ChunksExactMut};
 
 use crate::color::{FromColor, Luma, LumaA, Rgb, Rgba, Bgr, Bgra};
 use crate::flat::{FlatSamples, SampleLayout};
@@ -19,7 +20,7 @@ pub struct Pixels<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
 {
-    chunks: Chunks<'a, P::Subpixel>,
+    chunks: ChunksExact<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Iterator for Pixels<'a, P>
@@ -53,12 +54,30 @@ where
     }
 }
 
+impl<P: Pixel> Clone for Pixels<'_, P> {
+    fn clone(&self) -> Self {
+        Pixels { chunks: self.chunks.clone() }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for Pixels<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("Pixels")
+            .field("chunks", &self.chunks)
+            .finish()
+    }
+}
+
 /// Iterate over mutable pixel refs.
 pub struct PixelsMut<'a, P: Pixel + 'a>
 where
     P::Subpixel: 'a,
 {
-    chunks: ChunksMut<'a, P::Subpixel>,
+    chunks: ChunksExactMut<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Iterator for PixelsMut<'a, P>
@@ -94,6 +113,18 @@ where
     }
 }
 
+impl<P: Pixel> fmt::Debug for PixelsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("PixelsMut")
+            .field("chunks", &self.chunks)
+            .finish()
+    }
+}
+
 /// Iterate over rows of an image
 ///
 /// This iterator is created with [`ImageBuffer::rows`]. See its document for details.
@@ -103,7 +134,7 @@ pub struct Rows<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: Chunks<'a, P::Subpixel>,
+    pixels: ChunksExact<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> Rows<'a, P> {
@@ -113,7 +144,7 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
         let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
         if row_len == 0 {
             Rows {
-                pixels: [].chunks(1),
+                pixels: [].chunks_exact(1),
             }
         } else {
             let pixels = pixels.get(..row_len*height as usize)
@@ -121,7 +152,7 @@ impl<'a, P: Pixel + 'a> Rows<'a, P> {
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
             Rows {
-                pixels: pixels.chunks(row_len),
+                pixels: pixels.chunks_exact(row_len),
             }
         }
     }
@@ -138,7 +169,7 @@ where
         let row = self.pixels.next()?;
         Some(Pixels {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -161,8 +192,26 @@ where
         let row = self.pixels.next_back()?;
         Some(Pixels {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         })
+    }
+}
+
+impl<P: Pixel> Clone for Rows<'_, P> {
+    fn clone(&self) -> Self {
+        Rows { pixels: self.pixels.clone() }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for Rows<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("Rows")
+            .field("pixels", &self.pixels)
+            .finish()
     }
 }
 
@@ -175,7 +224,7 @@ pub struct RowsMut<'a, P: Pixel + 'a>
 where
     <P as Pixel>::Subpixel: 'a,
 {
-    pixels: ChunksMut<'a, P::Subpixel>,
+    pixels: ChunksExactMut<'a, P::Subpixel>,
 }
 
 impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
@@ -185,7 +234,7 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
         let row_len = (width as usize) * usize::from(<P as Pixel>::CHANNEL_COUNT);
         if row_len == 0 {
             RowsMut {
-                pixels: [].chunks_mut(1),
+                pixels: [].chunks_exact_mut(1),
             }
         } else {
             let pixels = pixels.get_mut(..row_len*height as usize)
@@ -193,7 +242,7 @@ impl<'a, P: Pixel + 'a> RowsMut<'a, P> {
             // Rows are physically present. In particular, height is smaller than `usize::MAX` as
             // all subpixels can be indexed.
             RowsMut {
-                pixels: pixels.chunks_mut(row_len),
+                pixels: pixels.chunks_exact_mut(row_len),
             }
         }
     }
@@ -210,7 +259,7 @@ where
         let row = self.pixels.next()?;
         Some(PixelsMut {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
     }
 }
@@ -233,8 +282,20 @@ where
         let row = self.pixels.next_back()?;
         Some(PixelsMut {
             // Note: this is not reached when CHANNEL_COUNT is 0.
-            chunks: row.chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: row.chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         })
+    }
+}
+
+impl<P: Pixel> fmt::Debug for RowsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+            .debug_struct("RowsMut")
+            .field("pixels", &self.pixels)
+            .finish()
     }
 }
 
@@ -273,6 +334,30 @@ where
 {
     fn len(&self) -> usize {
         self.pixels.len()
+    }
+}
+
+impl<P: Pixel> Clone for EnumeratePixels<'_, P> {
+    fn clone(&self) -> Self {
+        EnumeratePixels {
+            pixels: self.pixels.clone(),
+            ..*self
+        }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumeratePixels<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumeratePixels")
+          .field("pixels", &self.pixels)
+          .field("x", &self.x)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
     }
 }
 
@@ -319,6 +404,29 @@ where
     }
 }
 
+impl<P: Pixel> Clone for EnumerateRows<'_, P> {
+    fn clone(&self) -> Self {
+        EnumerateRows {
+            rows: self.rows.clone(),
+            ..*self
+        }
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumerateRows<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumerateRows")
+          .field("rows", &self.rows)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
+    }
+}
+
 /// Enumerate the pixels of an image.
 pub struct EnumeratePixelsMut<'a, P: Pixel + 'a>
 where
@@ -354,6 +462,21 @@ where
 {
     fn len(&self) -> usize {
         self.pixels.len()
+    }
+}
+
+impl<P: Pixel> fmt::Debug for EnumeratePixelsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumeratePixelsMut")
+          .field("pixels", &self.pixels)
+          .field("x", &self.x)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
     }
 }
 
@@ -400,6 +523,20 @@ where
     }
 }
 
+impl<P: Pixel> fmt::Debug for EnumerateRowsMut<'_, P>
+where
+    P::Subpixel: fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f
+          .debug_struct("EnumerateRowsMut")
+          .field("rows", &self.rows)
+          .field("y", &self.y)
+          .field("width", &self.width)
+          .finish()
+    }
+}
+
 /// Generic image buffer
 ///
 /// This is an image parameterised by its Pixel types, represented by a width and height and a
@@ -416,7 +553,15 @@ where
 /// [`RgbImage`]: type.RgbImage.html
 /// [`GrayImage`]: type.GrayImage.html
 ///
-/// To convert between images of different Pixel types use [`DynamicImage`]: enum.DynamicImage.html
+/// To convert between images of different Pixel types use [`DynamicImage`].
+///
+/// You can retrieve a complete description of the buffer's layout and contents through
+/// [`as_flat_samples`] and [`as_flat_samples_mut`]. This can be handy to also use the contents in
+/// a foreign language, map it as a GPU host buffer or other similar tasks.
+///
+/// [`DynamicImage`]: enum.DynamicImage.html
+/// [`as_flat_samples`]: #method.as_flat_samples
+/// [`as_flat_samples_mut`]: #method.as_flat_samples_mut
 ///
 /// ## Examples
 ///
@@ -501,6 +646,11 @@ where
         self.data
     }
 
+    /// Returns the underlying raw buffer
+    pub fn as_raw(&self) -> &Container {
+        &self.data
+    }
+
     /// The width and height of this image.
     pub fn dimensions(&self) -> (u32, u32) {
         (self.width, self.height)
@@ -523,9 +673,10 @@ where
     }
 
     /// Returns an iterator over the pixels of this image.
+    /// The iteration order is x = 0 to width then y = 0 to height
     pub fn pixels(&self) -> Pixels<P> {
         Pixels {
-            chunks: self.inner_pixels().chunks(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels().chunks_exact(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
@@ -541,6 +692,7 @@ where
     /// Enumerates over the pixels of the image.
     /// The iterator yields the coordinates of each pixel
     /// along with a reference to them.
+    /// The iteration order is x = 0 to width then y = 0 to height
     pub fn enumerate_pixels(&self) -> EnumeratePixels<P> {
         EnumeratePixels {
             pixels: self.pixels(),
@@ -643,6 +795,20 @@ where
             color_hint: Some(P::COLOR_TYPE),
         }
     }
+
+    /// Return a mutable view on the raw sample buffer.
+    ///
+    /// See [`into_flat_samples`](#method.into_flat_samples) for more details.
+    pub fn as_flat_samples_mut(&mut self) -> FlatSamples<&mut [P::Subpixel]>
+        where Container: AsMut<[P::Subpixel]>
+    {
+        let layout = self.sample_layout();
+        FlatSamples {
+            samples: self.data.as_mut(),
+            layout,
+            color_hint: Some(P::COLOR_TYPE),
+        }
+    }
 }
 
 impl<P, Container> ImageBuffer<P, Container>
@@ -660,7 +826,7 @@ where
     /// Returns an iterator over the mutable pixels of this image.
     pub fn pixels_mut(&mut self) -> PixelsMut<P> {
         PixelsMut {
-            chunks: self.inner_pixels_mut().chunks_mut(<P as Pixel>::CHANNEL_COUNT as usize),
+            chunks: self.inner_pixels_mut().chunks_exact_mut(<P as Pixel>::CHANNEL_COUNT as usize),
         }
     }
 
