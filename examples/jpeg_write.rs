@@ -5,9 +5,10 @@ use std::env;
 use std::fs::File;
 use std::path::Path;
 
-use image::{ImageOutputFormat, GenericImageView};
+use image::{ImageOutputFormat, GenericImageView, ColorType, jpeg::JpegEncoder};
 
 fn main() {
+    // compute the source image and output directory
     let file = if env::args().count() >= 2 {
         env::args().nth(1).unwrap()
     } else {
@@ -25,17 +26,24 @@ fn main() {
     let im = image::open(&Path::new(&file)).unwrap();
 
     // The dimensions method returns the images width and height
+    let (_width, _height) = im.dimensions();
     println!("dimensions {:?}", im.dimensions());
 
     // The color method returns the image's ColorType
     println!("{:?}", im.color());
 
+    // create a new output path based on the input name + output path
     let file_stem = Path::new(&file).file_stem();
     let out_path = format!("{}{}.jpg", output, file_stem.unwrap().to_str().unwrap());
     println!("{}", out_path);
 
+    // create the output file
     let fout = &mut File::create(&Path::new(&out_path)).unwrap();
 
-    // Write the contents of this image to the Writer in PNG format.
-    im.write_to(fout, ImageOutputFormat::Jpeg(75)).unwrap();
+    // get a simple RGB image out
+    // then create the JPEG encoder, with our settings
+    // and have it write it out!
+    let img_bits = im.into_rgb();
+    let mut encoder = JpegEncoder::new_with_quality(fout, 75);
+    encoder.encode_image(&img_bits).expect("Could not encode image");
 }
