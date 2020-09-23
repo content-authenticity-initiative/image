@@ -346,6 +346,8 @@ pub struct JpegEncoder<'a, W: 'a> {
     chroma_actable: Vec<(u8, u16)>,
 
     pixel_density: PixelDensity,
+
+    app11_data: Vec<u8>
 }
 
 /// JPEG Encoder
@@ -422,6 +424,8 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         tables.extend(STD_LUMA_QTABLE.iter().map(&scale_value));
         tables.extend(STD_CHROMA_QTABLE.iter().map(&scale_value));
 
+        let app11_data = Vec::new();
+
         JpegEncoder {
             writer: BitWriter::new(w),
 
@@ -434,6 +438,8 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
             chroma_actable: ca,
 
             pixel_density: PixelDensity::default(),
+
+            app11_data,
         }
     }
 
@@ -442,6 +448,13 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
     /// and no DPI information will be stored in the image.
     pub fn set_pixel_density(&mut self, pixel_density: PixelDensity) {
         self.pixel_density = pixel_density;
+    }
+
+    /// Set the data stream to be added to the APP11 JPEG marker
+    /// If this method is not called, then no marker will be added
+    /// otherwise this data will be stored in the JPEG.
+    pub fn set_app11_data(&mut self, data: Vec<u8>) {
+        self.app11_data = data.clone();
     }
 
     /// Encodes the image stored in the raw byte buffer ```image```
@@ -515,9 +528,10 @@ impl<'a, W: Write> JpegEncoder<'a, W> {
         build_jfif_header(&mut buf, self.pixel_density);
         self.writer.write_segment(APP0, Some(&buf))?;
 
-        let app11_payload = vec![b'j', b'p', b'x', b't', 0, 0, 0, 0];
-        build_app11(&mut buf, app11_payload);
-        self.writer.write_segment(APP11, Some(&buf))?;
+        if self.app11_data.len() > 0 {
+            build_app11(&mut buf, &self.app11_data);
+            self.writer.write_segment(APP11, Some(&buf))?;
+        }
 
         build_frame_header(
             &mut buf,
@@ -722,17 +736,18 @@ fn build_jfif_header(m: &mut Vec<u8>, density: PixelDensity) {
     let _ = m.write_all(&[0]);
 }
 
-fn build_app11(m: &mut Vec<u8>, payload: Vec<u8>) {
+fn build_app11(m: &mut Vec<u8>, payload: &Vec<u8>) {
     m.clear();
+
+    // NOTE: we don't need this as it's automatically handled by write_segment()
+    // Compute `Le` (CI + En + Z + payload)
+    //  this assumes that payload is self-contained, including LBOX and TBOX
+    // let le:u16 = (2 + 2 + 4 + payload.len()).try_into().unwrap(); 
+    // let _ = m.write_u16::<BigEndian>(le);   // Le: Length of the marker segment
 
     let _ = write!(m, "JP");                // CI: JPEG extensions marker
     let _ = m.write_u16::<BigEndian>(1);    // En: Box Instance Number
     let _ = m.write_u32::<BigEndian>(1);    // Z: Packet sequence number 
-
-    let lbox:u32 = (4 + 4 + payload.len()).try_into().unwrap(); // size of LBox + size of TBox
-    let _ = m.write_u32::<BigEndian>(lbox);    // LBox: Length of the box's actual data
-
-    let _ = write!(m, "ftyp");              // TBox: ftype in this case...
 
     m.extend(payload);           // Payload...(we use extend because payload is immutable)
 }

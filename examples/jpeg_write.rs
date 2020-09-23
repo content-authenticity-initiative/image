@@ -2,6 +2,8 @@
 extern crate image;
 
 use std::env;
+use std::io;
+use std::io::prelude::*;
 use std::fs::File;
 use std::path::Path;
 
@@ -15,10 +17,16 @@ fn main() {
         panic!("Please enter a file")
     };
 
-    let output = if env::args().count() == 3 {
+    let output = if env::args().count() >= 3 {
         env::args().nth(2).unwrap()
     } else {
         file.clone()
+    };
+
+    let app11_path = if env::args().count() >= 4 {
+        env::args().nth(3).unwrap()
+    } else {
+        "".to_string()
     };
 
     // Use the open function to load an image from a Path.
@@ -45,5 +53,13 @@ fn main() {
     // and have it write it out!
     let img_bits = im.into_rgb();
     let mut encoder = JpegEncoder::new_with_quality(fout, 75);
+    
+    if !app11_path.is_empty() {
+        println!("App11: {}", app11_path);
+        let mut data_file = File::open(app11_path).unwrap();
+        let mut data = Vec::new();
+        data_file.read_to_end(&mut data).expect("Could not read app11 data");
+        encoder.set_app11_data(data);
+    };
     encoder.encode_image(&img_bits).expect("Could not encode image");
 }
